@@ -25,14 +25,16 @@ const COLOSSEUM_API_URL = 'https://api.colosseum.org/forum'; // Placeholder - up
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const connection = new Connection(RPC_URL, 'confirmed');
 
-// SNS Resolution via Bonfida API
+// SNS Resolution via Bonfida SDK Proxy
 async function resolveSNS(domain) {
   const name = domain.replace(/\.sol$/i, '');
   try {
-    const res = await fetch(`https://sns-api.bonfida.com/v2/resolve/${name}`);
+    const res = await fetch(`https://sns-sdk-proxy.bonfida.workers.dev/resolve/${name}`);
     const data = await res.json();
-    if (data.success && data.result) return data.result;
-  } catch (e) {}
+    if (data.s === 'ok' && data.result) return data.result;
+  } catch (e) {
+    console.error('SNS resolution error:', e.message);
+  }
   return null;
 }
 
