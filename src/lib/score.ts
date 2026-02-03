@@ -1,6 +1,8 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js'
 
 const RPC = process.env.HELIUS_RPC || 'https://api.mainnet-beta.solana.com'
+const TX_SAMPLE_SIZE = 20  // Reduced from 50
+const TX_TIMEOUT_MS = 5000 // 5s per tx fetch
 
 // Known DeFi programs
 const DEFI_PROGRAMS = new Set([
@@ -58,21 +60,39 @@ export async function calculateScore(walletAddress: string): Promise<ScoreResult
   const txCount = signatures.length
   const activityScore = Math.min(25, Math.floor(txCount / 10) * 5) // 5 pts per 10 tx
   
-  // Calculate DeFi score (0-25)
-  let defiCount = 0
-  for (const sig of signatures.slice(0, 50)) {
+  // Calculate DeFi score (0-25) - parallel fetch with timeout
+  const fetchWithTimeout = async (signature: string): Promise<ParsedTransactionWithMeta | null> => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), TX_TIMEOUT_MS)
     try {
-      const tx = await conn.getParsedTransaction(sig.signature, { maxSupportedTransactionVersion: 0 })
-      if (tx?.transaction.message.accountKeys) {
-        for (const key of tx.transaction.message.accountKeys) {
-          const addr = typeof key === 'string' ? key : key.pubkey.toString()
-          if (DEFI_PROGRAMS.has(addr)) {
-            defiCount++
-            break
-          }
+      const tx = await conn.getParsedTransaction(signature, { 
+        maxSupportedTransactionVersion: 0,
+      })
+      clearTimeout(timeout)
+      return tx
+    } catch {
+      clearTimeout(timeout)
+      return null
+    }
+  }
+
+  const txResults = await Promise.allSettled(
+    signatures.slice(0, TX_SAMPLE_SIZE).map(sig => fetchWithTimeout(sig.signature))
+  )
+
+  let defiCount = 0
+  for (const result of txResults) {
+    if (result.status !== 'fulfilled' || !result.value) continue
+    const tx = result.value
+    if (tx?.transaction.message.accountKeys) {
+      for (const key of tx.transaction.message.accountKeys) {
+        const addr = typeof key === 'string' ? key : key.pubkey.toString()
+        if (DEFI_PROGRAMS.has(addr)) {
+          defiCount++
+          break
         }
       }
-    } catch {}
+    }
   }
   const defiScore = Math.min(25, defiCount * 2) // 2 pts per DeFi tx
   
