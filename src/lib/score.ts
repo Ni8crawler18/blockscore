@@ -149,6 +149,7 @@ export async function calculateScore(walletAddress: string): Promise<ScoreResult
 
   let defiCount = 0
   let txAnalyzed = 0
+  const detectedPrograms: string[] = []
   
   for (const tx of txResults) {
     if (!tx) continue
@@ -162,18 +163,35 @@ export async function calculateScore(walletAddress: string): Promise<ScoreResult
         const addr = typeof key === 'string' ? key : key.pubkey.toString()
         if (DEFI_PROGRAMS.has(addr)) {
           foundDefi = true
+          detectedPrograms.push(addr)
           break
         }
+      }
+    }
+    
+    // Check inner instructions
+    if (!foundDefi && tx.meta?.innerInstructions) {
+      for (const inner of tx.meta.innerInstructions) {
+        for (const ix of inner.instructions) {
+          const programId = 'programId' in ix ? ix.programId.toString() : ''
+          if (DEFI_PROGRAMS.has(programId)) {
+            foundDefi = true
+            detectedPrograms.push(programId)
+            break
+          }
+        }
+        if (foundDefi) break
       }
     }
     
     // Also check logs for program invocations
     if (!foundDefi && tx.meta?.logMessages) {
       for (const log of tx.meta.logMessages) {
-        if (log.startsWith('Program ')) {
-          const programId = log.split(' ')[1]
-          if (DEFI_PROGRAMS.has(programId)) {
+        if (log.includes('Program ') && log.includes(' invoke')) {
+          const match = log.match(/Program ([A-Za-z0-9]{32,44}) invoke/)
+          if (match && DEFI_PROGRAMS.has(match[1])) {
             foundDefi = true
+            detectedPrograms.push(match[1])
             break
           }
         }
@@ -182,6 +200,8 @@ export async function calculateScore(walletAddress: string): Promise<ScoreResult
     
     if (foundDefi) defiCount++
   }
+  
+  console.log(`[BlockScore] Wallet: ${walletAddress.slice(0,8)}... | Analyzed: ${txAnalyzed} | DeFi: ${defiCount} | Programs: ${detectedPrograms.join(', ') || 'none'}`)
   
   // Scale DeFi score based on analyzed ratio
   const analyzeRatio = txAnalyzed / TX_SAMPLE_SIZE
