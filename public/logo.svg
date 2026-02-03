@@ -1,0 +1,14 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pixel art logo recreation -->
+  <rect x="4" y="4" width="8" height="8" fill="#4CAF50"/>
+  <rect x="12" y="4" width="8" height="8" fill="#4CAF50"/>
+  <rect x="20" y="4" width="8" height="8" fill="#4CAF50"/>
+  <rect x="4" y="12" width="8" height="8" fill="#4CAF50"/>
+  <rect x="20" y="12" width="8" height="8" fill="#4CAF50"/>
+  <rect x="28" y="12" width="8" height="8" fill="#4CAF50"/>
+  <rect x="12" y="20" width="8" height="8" fill="#4CAF50"/>
+  <rect x="28" y="20" width="8" height="8" fill="#4CAF50"/>
+  <rect x="12" y="28" width="8" height="8" fill="#4CAF50"/>
+  <rect x="20" y="28" width="8" height="8" fill="#4CAF50"/>
+  <rect x="28" y="28" width="8" height="8" fill="#4CAF50"/>
+</svg>
