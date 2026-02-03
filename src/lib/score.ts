@@ -35,12 +35,9 @@ export async function calculateScore(walletAddress: string): Promise<ScoreResult
   const conn = new Connection(RPC)
   const pubkey = new PublicKey(walletAddress)
   
-  // Get account info
-  const accountInfo = await conn.getAccountInfo(pubkey)
-  if (!accountInfo) throw new Error('Wallet not found')
-  
   // Get recent signatures
   const signatures = await conn.getSignaturesForAddress(pubkey, { limit: 100 })
+  if (signatures.length === 0) throw new Error('No activity found for this wallet')
   
   // Get token accounts
   const tokenAccounts = await conn.getParsedTokenAccountsByOwner(pubkey, {
