@@ -3,6 +3,21 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import ScoreCard from '@/components/ScoreCard'
 
+interface ScoreReason {
+  score: number
+  maxScore: number
+  reason: string
+  details: string
+}
+
+interface Badge {
+  id: string
+  name: string
+  icon: string
+  description: string
+  rarity: 'common' | 'rare' | 'epic' | 'legendary'
+}
+
 interface ScoreData {
   score: number
   grade: string
@@ -12,6 +27,13 @@ interface ScoreData {
     balance: number
     diversity: number
   }
+  reasons?: {
+    age: ScoreReason
+    activity: ScoreReason
+    balance: ScoreReason
+    diversity: ScoreReason
+  }
+  badges?: Badge[]
   wallet: string
   stats?: {
     solBalance: number

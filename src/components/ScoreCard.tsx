@@ -1,6 +1,21 @@
 'use client'
 import { useState } from 'react'
 
+interface ScoreReason {
+  score: number
+  maxScore: number
+  reason: string
+  details: string
+}
+
+interface Badge {
+  id: string
+  name: string
+  icon: string
+  description: string
+  rarity: 'common' | 'rare' | 'epic' | 'legendary'
+}
+
 interface ScoreData {
   score: number
   grade: string
@@ -10,6 +25,13 @@ interface ScoreData {
     balance: number
     diversity: number
   }
+  reasons?: {
+    age: ScoreReason
+    activity: ScoreReason
+    balance: ScoreReason
+    diversity: ScoreReason
+  }
+  badges?: Badge[]
   wallet: string
   stats?: {
     solBalance: number
@@ -30,10 +52,25 @@ const metrics = [
   { key: 'diversity', label: 'Diversity', description: 'Token holdings', icon: '💎' },
 ] as const
 
+const rarityColors = {
+  common: 'from-gray-400 to-gray-500 border-gray-400/30',
+  rare: 'from-blue-400 to-blue-500 border-blue-400/30',
+  epic: 'from-purple-400 to-purple-500 border-purple-400/30',
+  legendary: 'from-amber-400 to-orange-500 border-amber-400/30',
+}
+
+const rarityBg = {
+  common: 'bg-gray-400/10',
+  rare: 'bg-blue-400/10',
+  epic: 'bg-purple-400/10',
+  legendary: 'bg-amber-400/10',
+}
+
 export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset: () => void }) {
   const [copied, setCopied] = useState(false)
+  const [showExplanation, setShowExplanation] = useState(false)
   
-  const shareText = `My BlockScore: ${data.score}/100 (Grade ${data.grade}) 🎯\n\nCheck your Solana wallet reputation:\nblockscore.vercel.app\n\n#BlockScore #Solana`
+  const shareText = `My BlockScore: ${data.score}/100 (Grade ${data.grade}) 🎯${data.badges && data.badges.length > 0 ? `\n\nBadges: ${data.badges.slice(0, 3).map(b => `${b.icon} ${b.name}`).join(', ')}` : ''}\n\nCheck your Solana wallet reputation:\nblockscore.vercel.app\n\n#BlockScore #Solana`
   const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
 
   const getScoreColor = (score: number) => {
@@ -58,11 +95,12 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
   }
 
   const solscanUrl = `https://solscan.io/account/${data.wallet}`
+  const ogImageUrl = `https://blockscore.vercel.app/api/og?score=${data.score}&grade=${data.grade}&wallet=${data.wallet}&age=${data.breakdown.age}&activity=${data.breakdown.activity}&balance=${data.breakdown.balance}&diversity=${data.breakdown.diversity}${data.badges ? `&badges=${encodeURIComponent(data.badges.slice(0, 4).map(b => b.icon).join(''))}` : ''}`
 
   return (
     <div className="animate-slide-up">
       {/* Main Score Card */}
-      <div className="glass rounded-3xl p-8 space-y-8">
+      <div className="glass rounded-3xl p-8 space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -118,33 +156,86 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
           </div>
         </div>
 
-        {/* Breakdown */}
-        <div className="grid grid-cols-2 gap-3">
-          {metrics.map((metric) => {
-            const value = data.breakdown[metric.key]
-            const percent = (value / 25) * 100
-            return (
-              <div key={metric.key} className="stat-card">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-lg">{metric.icon}</span>
-                  <span className={`text-xl font-bold ${getScoreColor(percent)}`}>
-                    {value}
-                    <span className="text-white/30 text-sm font-normal">/25</span>
-                  </span>
+        {/* Badges Section */}
+        {data.badges && data.badges.length > 0 && (
+          <div className="pt-4 border-t border-white/5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-white/40 uppercase tracking-wider">Badges Earned</p>
+              <p className="text-xs text-white/30">{data.badges.length} badge{data.badges.length !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {data.badges.map((badge) => (
+                <div
+                  key={badge.id}
+                  className={`group relative px-3 py-2 rounded-xl border ${rarityBg[badge.rarity]} ${rarityColors[badge.rarity].split(' ')[2]} cursor-help transition-all hover:scale-105`}
+                  title={badge.description}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{badge.icon}</span>
+                    <span className={`text-xs font-medium bg-gradient-to-r ${rarityColors[badge.rarity].split(' ').slice(0, 2).join(' ')} bg-clip-text text-transparent`}>
+                      {badge.name}
+                    </span>
+                  </div>
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 rounded-lg text-xs text-white/80 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    {badge.description}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <div className="text-sm font-medium text-white/90">{metric.label}</div>
-                  <div className="text-xs text-white/40">{metric.description}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Breakdown with Toggle */}
+        <div className="pt-4 border-t border-white/5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/40 uppercase tracking-wider">Score Breakdown</p>
+            <button 
+              onClick={() => setShowExplanation(!showExplanation)}
+              className="text-xs text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1"
+            >
+              {showExplanation ? 'Hide' : 'Show'} explanations
+              <svg className={`w-3 h-3 transition-transform ${showExplanation ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {metrics.map((metric) => {
+              const value = data.breakdown[metric.key]
+              const percent = (value / 25) * 100
+              const reason = data.reasons?.[metric.key]
+              return (
+                <div key={metric.key} className="stat-card">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg">{metric.icon}</span>
+                    <span className={`text-xl font-bold ${getScoreColor(percent)}`}>
+                      {value}
+                      <span className="text-white/30 text-sm font-normal">/25</span>
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-white/90">{metric.label}</div>
+                    {showExplanation && reason ? (
+                      <div className="mt-1">
+                        <div className="text-xs text-primary-400 font-medium">{reason.reason}</div>
+                        <div className="text-xs text-white/40 mt-0.5">{reason.details}</div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-white/40">{metric.description}</div>
+                    )}
+                  </div>
+                  <div className="mt-3 score-bar">
+                    <div 
+                      className={`score-bar-fill bg-gradient-to-r ${getBarGradient(value, 25)}`}
+                      style={{ '--score-width': `${percent}%` } as React.CSSProperties}
+                    />
+                  </div>
                 </div>
-                <div className="mt-3 score-bar">
-                  <div 
-                    className={`score-bar-fill bg-gradient-to-r ${getBarGradient(value, 25)}`}
-                    style={{ '--score-width': `${percent}%` } as React.CSSProperties}
-                  />
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
 
         {/* Stats */}
@@ -224,6 +315,18 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
               </svg>
             )}
           </button>
+        </div>
+
+        {/* Share Card Preview Link */}
+        <div className="text-center pt-2">
+          <a 
+            href={ogImageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-white/30 hover:text-primary-400 transition-colors"
+          >
+            📷 View shareable score card image
+          </a>
         </div>
       </div>
 

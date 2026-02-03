@@ -10,6 +10,18 @@ app.use(express.json());
 // Cache scores for 5 minutes to reduce RPC calls
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
+// ========== AGENTIC MONITORING ==========
+
+// In-memory watchlist storage (lightweight for free tier)
+const watchlist = new Map(); // wallet -> { addedAt, lastScore, previousScore, scoreHistory }
+
+// Score change history for tracking
+const scoreChanges = []; // { wallet, oldScore, newScore, change, timestamp }
+
+// Colosseum Forum API config
+const COLOSSEUM_API_KEY = '34e8e64e203b450286b7f1de43e48ab1eea69d4675e09545585f30ad3524bcd6';
+const COLOSSEUM_API_URL = 'https://api.colosseum.org/forum'; // Placeholder - update with real endpoint
+
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const connection = new Connection(RPC_URL, 'confirmed');
 
@@ -153,11 +165,19 @@ function calculateBadges(score, age, txCount, sol, tokens, grade) {
 app.get('/', (req, res) => {
   res.json({
     name: 'BlockScore API',
-    version: '1.0.0',
+    version: '1.1.0',
     endpoints: {
       'GET /score/:wallet': 'Get reputation score for a wallet',
       'POST /batch': 'Score multiple wallets (max 10)',
-      'GET /health': 'Health check'
+      'GET /health': 'Health check',
+      'POST /watch': 'Add wallet to watchlist',
+      'DELETE /watch/:wallet': 'Remove wallet from watchlist',
+      'GET /watchlist': 'List watched wallets with scores',
+      'POST /rescore/:wallet': 'Rescore wallet with change detection',
+      'POST /watchlist/rescore': 'Bulk rescore all watched wallets',
+      'GET /report': 'Daily summary report of watchlist',
+      'GET /forum/preview': 'Preview forum alert post',
+      'POST /forum/post': 'Post alert to Colosseum (admin only)'
     },
     docs: 'https://blockscore.vercel.app/docs'
   });
@@ -230,7 +250,381 @@ app.post('/cache/clear', (req, res) => {
   res.json({ status: 'Cache cleared' });
 });
 
+// ========== WATCHLIST ENDPOINTS ==========
+
+// Add wallet to watchlist
+app.post('/watch', async (req, res) => {
+  try {
+    let { wallet } = req.body;
+    if (!wallet) return res.status(400).json({ error: 'Wallet address required' });
+    
+    // Handle SNS domains
+    if (wallet.endsWith('.sol')) {
+      const resolved = await resolveSNS(wallet);
+      if (!resolved) return res.status(400).json({ error: 'Could not resolve .sol domain' });
+      wallet = resolved;
+    }
+    
+    // Validate address
+    try { new PublicKey(wallet); }
+    catch { return res.status(400).json({ error: 'Invalid Solana address' }); }
+    
+    if (watchlist.has(wallet)) {
+      return res.status(409).json({ error: 'Wallet already in watchlist', wallet });
+    }
+    
+    // Get initial score
+    const score = await scoreWallet(wallet);
+    
+    watchlist.set(wallet, {
+      addedAt: new Date().toISOString(),
+      lastScore: score.score,
+      lastGrade: score.grade,
+      previousScore: null,
+      scoreHistory: [{ score: score.score, timestamp: new Date().toISOString() }]
+    });
+    
+    res.json({ 
+      status: 'added', 
+      wallet, 
+      currentScore: score.score,
+      grade: score.grade,
+      watchlistSize: watchlist.size 
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add wallet', message: err.message });
+  }
+});
+
+// Remove wallet from watchlist
+app.delete('/watch/:wallet', (req, res) => {
+  const wallet = req.params.wallet;
+  
+  if (!watchlist.has(wallet)) {
+    return res.status(404).json({ error: 'Wallet not in watchlist' });
+  }
+  
+  watchlist.delete(wallet);
+  res.json({ status: 'removed', wallet, watchlistSize: watchlist.size });
+});
+
+// List all watched wallets
+app.get('/watchlist', (req, res) => {
+  const wallets = [];
+  watchlist.forEach((data, wallet) => {
+    wallets.push({
+      wallet,
+      ...data,
+      scoreChange: data.previousScore !== null ? data.lastScore - data.previousScore : null
+    });
+  });
+  
+  // Sort by score descending
+  wallets.sort((a, b) => b.lastScore - a.lastScore);
+  
+  res.json({ 
+    count: wallets.length, 
+    wallets,
+    recentChanges: scoreChanges.slice(-20) // Last 20 changes
+  });
+});
+
+// ========== SCORE WITH CHANGE DETECTION ==========
+
+// Rescore a watched wallet and detect changes
+app.post('/rescore/:wallet', async (req, res) => {
+  try {
+    let wallet = req.params.wallet;
+    
+    // Handle SNS domains
+    if (wallet.endsWith('.sol')) {
+      const resolved = await resolveSNS(wallet);
+      if (!resolved) return res.status(400).json({ error: 'Could not resolve .sol domain' });
+      wallet = resolved;
+    }
+    
+    // Clear cache to get fresh score
+    cache.del(wallet);
+    
+    const newScore = await scoreWallet(wallet);
+    const watchData = watchlist.get(wallet);
+    
+    let changeInfo = null;
+    
+    if (watchData) {
+      const previousScore = watchData.lastScore;
+      const change = newScore.score - previousScore;
+      const significantChange = Math.abs(change) > 5;
+      
+      // Update watchlist
+      watchData.previousScore = previousScore;
+      watchData.lastScore = newScore.score;
+      watchData.lastGrade = newScore.grade;
+      watchData.scoreHistory.push({ score: newScore.score, timestamp: new Date().toISOString() });
+      
+      // Keep history manageable (last 50 entries)
+      if (watchData.scoreHistory.length > 50) {
+        watchData.scoreHistory = watchData.scoreHistory.slice(-50);
+      }
+      
+      changeInfo = {
+        previousScore,
+        newScore: newScore.score,
+        change,
+        significantChange,
+        direction: change > 0 ? 'up' : change < 0 ? 'down' : 'stable'
+      };
+      
+      // Track significant changes
+      if (significantChange) {
+        scoreChanges.push({
+          wallet,
+          oldScore: previousScore,
+          newScore: newScore.score,
+          change,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Keep changes log manageable
+        if (scoreChanges.length > 100) {
+          scoreChanges.shift();
+        }
+      }
+    }
+    
+    res.json({
+      ...newScore,
+      changeInfo,
+      isWatched: !!watchData
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to rescore wallet', message: err.message });
+  }
+});
+
+// ========== AUTO-REPORT ENDPOINT ==========
+
+app.get('/report', async (req, res) => {
+  try {
+    const wallets = [];
+    const now = new Date();
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    
+    // Gather all watchlist data
+    watchlist.forEach((data, wallet) => {
+      wallets.push({
+        wallet,
+        score: data.lastScore,
+        grade: data.lastGrade,
+        previousScore: data.previousScore,
+        change: data.previousScore !== null ? data.lastScore - data.previousScore : null,
+        addedAt: data.addedAt
+      });
+    });
+    
+    if (wallets.length === 0) {
+      return res.json({
+        generated: now.toISOString(),
+        summary: 'No wallets in watchlist',
+        watchlistCount: 0
+      });
+    }
+    
+    // Sort for analysis
+    const sorted = [...wallets].sort((a, b) => b.score - a.score);
+    const topPerformers = sorted.slice(0, 5);
+    const bottomPerformers = sorted.slice(-5).reverse();
+    
+    // Find significant changes (>5 points)
+    const significantChanges = wallets
+      .filter(w => w.change !== null && Math.abs(w.change) > 5)
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+    
+    // Recent changes in last 24h
+    const recentChanges = scoreChanges.filter(c => new Date(c.timestamp) > oneDayAgo);
+    
+    // Calculate stats
+    const avgScore = wallets.reduce((sum, w) => sum + w.score, 0) / wallets.length;
+    const gradeDistribution = {};
+    wallets.forEach(w => {
+      gradeDistribution[w.grade] = (gradeDistribution[w.grade] || 0) + 1;
+    });
+    
+    res.json({
+      generated: now.toISOString(),
+      summary: {
+        watchlistCount: wallets.length,
+        averageScore: Math.round(avgScore * 10) / 10,
+        gradeDistribution
+      },
+      topPerformers: topPerformers.map(w => ({
+        wallet: w.wallet,
+        score: w.score,
+        grade: w.grade
+      })),
+      bottomPerformers: bottomPerformers.map(w => ({
+        wallet: w.wallet,
+        score: w.score,
+        grade: w.grade
+      })),
+      significantChanges: significantChanges.slice(0, 10),
+      recentChanges24h: recentChanges,
+      alerts: significantChanges.length > 0 
+        ? `${significantChanges.length} wallet(s) with score changes > 5 points`
+        : 'No significant score changes detected'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate report', message: err.message });
+  }
+});
+
+// ========== COLOSSEUM FORUM AUTO-POST (PREPARED) ==========
+
+// Function to post score alerts to Colosseum forum
+// Call manually via POST /forum/post or integrate into automated workflow
+async function postToColosseumForum(title, content, category = 'alerts') {
+  try {
+    const response = await fetch(COLOSSEUM_API_URL + '/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${COLOSSEUM_API_KEY}`,
+        'X-API-Key': COLOSSEUM_API_KEY
+      },
+      body: JSON.stringify({
+        title,
+        content,
+        category
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Forum API returned ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Colosseum post failed:', err.message);
+    return { error: err.message };
+  }
+}
+
+// Generate alert message for significant score changes
+function generateScoreAlert(changes) {
+  if (changes.length === 0) return null;
+  
+  const lines = changes.map(c => {
+    const direction = c.change > 0 ? '📈' : '📉';
+    const sign = c.change > 0 ? '+' : '';
+    return `${direction} \`${c.wallet.slice(0, 8)}...\`: ${c.oldScore} → ${c.newScore} (${sign}${c.change})`;
+  });
+  
+  return {
+    title: `🔔 BlockScore Alert: ${changes.length} Significant Score Change(s)`,
+    content: `**Wallet Score Changes Detected**\n\n${lines.join('\n')}\n\n---\n*Generated by BlockScore Monitoring*`
+  };
+}
+
+// Manual trigger for forum post (doesn't auto-run)
+app.post('/forum/post', async (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const recentSignificant = scoreChanges.filter(c => {
+    const changeAge = Date.now() - new Date(c.timestamp).getTime();
+    return changeAge < 24 * 60 * 60 * 1000; // Last 24h
+  });
+  
+  if (recentSignificant.length === 0) {
+    return res.json({ status: 'skipped', message: 'No significant changes to report' });
+  }
+  
+  const alert = generateScoreAlert(recentSignificant);
+  const result = await postToColosseumForum(alert.title, alert.content);
+  
+  res.json({ 
+    status: 'posted', 
+    changesReported: recentSignificant.length,
+    result 
+  });
+});
+
+// Dry-run: preview what would be posted
+app.get('/forum/preview', (req, res) => {
+  const recentSignificant = scoreChanges.filter(c => {
+    const changeAge = Date.now() - new Date(c.timestamp).getTime();
+    return changeAge < 24 * 60 * 60 * 1000;
+  });
+  
+  if (recentSignificant.length === 0) {
+    return res.json({ preview: null, message: 'No significant changes to report' });
+  }
+  
+  const alert = generateScoreAlert(recentSignificant);
+  res.json({ preview: alert, changesCount: recentSignificant.length });
+});
+
+// ========== BULK RESCORE WATCHLIST ==========
+
+app.post('/watchlist/rescore', async (req, res) => {
+  try {
+    const results = [];
+    const significantChanges = [];
+    
+    for (const [wallet, data] of watchlist) {
+      // Clear cache for fresh score
+      cache.del(wallet);
+      
+      const newScore = await scoreWallet(wallet);
+      const change = newScore.score - data.lastScore;
+      
+      // Update watchlist
+      data.previousScore = data.lastScore;
+      data.lastScore = newScore.score;
+      data.lastGrade = newScore.grade;
+      data.scoreHistory.push({ score: newScore.score, timestamp: new Date().toISOString() });
+      
+      if (data.scoreHistory.length > 50) {
+        data.scoreHistory = data.scoreHistory.slice(-50);
+      }
+      
+      const result = {
+        wallet,
+        previousScore: data.previousScore,
+        newScore: newScore.score,
+        change,
+        significantChange: Math.abs(change) > 5
+      };
+      
+      results.push(result);
+      
+      if (Math.abs(change) > 5) {
+        significantChanges.push(result);
+        scoreChanges.push({
+          wallet,
+          oldScore: data.previousScore,
+          newScore: newScore.score,
+          change,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    res.json({
+      rescored: results.length,
+      results,
+      significantChanges,
+      alertCount: significantChanges.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Bulk rescore failed', message: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`BlockScore API running on port ${PORT}`);
+  console.log('Agentic monitoring features enabled: /watch, /watchlist, /report, /forum/*');
 });
