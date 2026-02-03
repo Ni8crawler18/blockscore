@@ -1,0 +1,19 @@
+{
+  "name": "blockscore-api",
+  "version": "1.0.0",
+  "description": "BlockScore API backend - On-chain reputation scoring for Solana",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "@solana/web3.js": "^1.87.6",
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
