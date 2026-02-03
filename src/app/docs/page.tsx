@@ -8,7 +8,7 @@ export default function DocsPage() {
       <header className="w-full px-6 py-5 border-b border-white/5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/logo.svg" alt="BlockScore" width={32} height={32} />
+            <Image src="/logo.png" alt="BlockScore" width={32} height={32} />
             <span className="font-semibold text-lg">BlockScore</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">

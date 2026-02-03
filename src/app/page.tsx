@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import ScoreCard from '@/components/ScoreCard'
 
@@ -13,11 +13,17 @@ interface ScoreData {
     diversity: number
   }
   wallet: string
+  stats?: {
+    totalTxAnalyzed: number
+    defiTxFound: number
+    tokenCount: number
+    oldestTxDays: number
+  }
 }
 
 const SAMPLE_WALLETS = [
-  { label: 'Toly (Solana)', address: 'vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg' },
-  { label: 'Jump Trading', address: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM' },
+  { label: 'Toly', address: 'vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg' },
+  { label: 'Jump', address: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM' },
   { label: 'Metaplex', address: 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' },
 ]
 
@@ -26,6 +32,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<ScoreData | null>(null)
   const [error, setError] = useState('')
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+
+  useEffect(() => {
+    const saved = localStorage.getItem('blockscore_recent')
+    if (saved) setRecentSearches(JSON.parse(saved))
+  }, [])
+
+  const saveSearch = (address: string) => {
+    const updated = [address, ...recentSearches.filter(a => a !== address)].slice(0, 5)
+    setRecentSearches(updated)
+    localStorage.setItem('blockscore_recent', JSON.stringify(updated))
+  }
 
   const checkScore = async (address?: string) => {
     const targetWallet = address || wallet
@@ -39,6 +57,7 @@ export default function Home() {
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setData(json)
+      saveSearch(targetWallet)
     } catch (e: any) {
       setError(e.message || 'Failed to fetch score')
     } finally {
@@ -52,13 +71,18 @@ export default function Home() {
     }
   }
 
+  const clearRecent = () => {
+    setRecentSearches([])
+    localStorage.removeItem('blockscore_recent')
+  }
+
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="w-full px-6 py-5 border-b border-white/5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/logo.svg" alt="BlockScore" width={32} height={32} />
+            <Image src="/logo.png" alt="BlockScore" width={32} height={32} />
             <span className="font-semibold text-lg">BlockScore</span>
           </a>
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">
@@ -142,9 +166,34 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Recent Searches */}
+              {recentSearches.length > 0 && (
+                <div className="pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-white/40">Recent</p>
+                    <button onClick={clearRecent} className="text-xs text-white/30 hover:text-white/60 transition-colors">Clear</button>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {recentSearches.map((addr) => (
+                      <button
+                        key={addr}
+                        onClick={() => checkScore(addr)}
+                        disabled={loading}
+                        className="px-3 py-1.5 text-xs font-mono rounded-lg bg-white/5 border border-white/10 
+                                   hover:bg-white/10 hover:border-white/20 transition-all truncate max-w-[140px]
+                                   disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={addr}
+                      >
+                        {addr.slice(0, 4)}...{addr.slice(-4)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Sample Wallets */}
-              <div className="pt-6 border-t border-white/5">
-                <p className="text-xs text-white/40 mb-3">Try a sample wallet</p>
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-white/40 mb-3">Try a sample</p>
                 <div className="flex flex-wrap justify-center gap-2">
                   {SAMPLE_WALLETS.map((sample) => (
                     <button
@@ -164,11 +213,11 @@ export default function Home() {
               {/* Features */}
               <div className="grid grid-cols-3 gap-3 pt-6">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">100+</div>
-                  <div className="text-xs text-white/40 mt-1">Data Points</div>
+                  <div className="text-2xl font-bold text-white">30+</div>
+                  <div className="text-xs text-white/40 mt-1">DeFi Protocols</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">&lt;5s</div>
+                  <div className="text-2xl font-bold text-white">&lt;10s</div>
                   <div className="text-xs text-white/40 mt-1">Analysis</div>
                 </div>
                 <div className="text-center">

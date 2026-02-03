@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 
 interface ScoreData {
   score: number
@@ -10,6 +11,12 @@ interface ScoreData {
     diversity: number
   }
   wallet: string
+  stats?: {
+    totalTxAnalyzed: number
+    defiTxFound: number
+    tokenCount: number
+    oldestTxDays: number
+  }
 }
 
 const metrics = [
@@ -20,6 +27,8 @@ const metrics = [
 ] as const
 
 export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset: () => void }) {
+  const [copied, setCopied] = useState(false)
+  
   const shareText = `My BlockScore: ${data.score}/100 (Grade ${data.grade}) 🎯\n\nCheck your Solana wallet reputation:\nblockscore.vercel.app\n\n#BlockScore #Solana`
   const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
 
@@ -38,6 +47,14 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
     return 'from-red-500 to-red-400'
   }
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(`BlockScore: ${data.score}/100 (${data.grade}) - ${data.wallet}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const solscanUrl = `https://solscan.io/account/${data.wallet}`
+
   return (
     <div className="animate-slide-up">
       {/* Main Score Card */}
@@ -46,9 +63,17 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Wallet Address</p>
-            <p className="font-mono text-sm text-white/70">
+            <a 
+              href={solscanUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-sm text-white/70 hover:text-primary-400 transition-colors flex items-center gap-1"
+            >
               {data.wallet.slice(0, 6)}...{data.wallet.slice(-6)}
-            </p>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           </div>
           <button
             onClick={onReset}
@@ -118,6 +143,28 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
           })}
         </div>
 
+        {/* Stats */}
+        {data.stats && (
+          <div className="grid grid-cols-4 gap-2 pt-4 border-t border-white/5">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-white">{data.stats.totalTxAnalyzed}</div>
+              <div className="text-[10px] text-white/40">Tx Analyzed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-white">{data.stats.defiTxFound}</div>
+              <div className="text-[10px] text-white/40">DeFi Tx</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-white">{data.stats.tokenCount}</div>
+              <div className="text-[10px] text-white/40">Tokens</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold text-white">{data.stats.oldestTxDays}d</div>
+              <div className="text-[10px] text-white/40">Age</div>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3 pt-2">
           <a
@@ -131,23 +178,38 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
             </svg>
             Share on X
           </a>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`BlockScore: ${data.score}/100 (${data.grade}) - ${data.wallet}`)
-            }}
-            className="btn-secondary px-4"
-            title="Copy to clipboard"
+          <a
+            href={solscanUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary px-4 flex items-center justify-center"
+            title="View on Solscan"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
+          </a>
+          <button
+            onClick={copyToClipboard}
+            className="btn-secondary px-4 flex items-center justify-center"
+            title="Copy to clipboard"
+          >
+            {copied ? (
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
 
       {/* Trust indicator */}
       <div className="mt-4 text-center text-xs text-white/30">
-        Analyzed from on-chain data • Updated in real-time
+        Analyzed {data.stats?.totalTxAnalyzed || 25} transactions • Data from Solana mainnet
       </div>
     </div>
   )
