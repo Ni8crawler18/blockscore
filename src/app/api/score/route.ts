@@ -1,14 +1,30 @@
 import { NextResponse } from 'next/server'
 import { calculateScore } from '@/lib/score'
+import { resolveSolDomain } from '@/lib/sns'
 
 const TIMEOUT_MS = 55000 // 55s (Vercel hobby limit is 60s for edge, 300s for serverless)
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const wallet = searchParams.get('wallet')
+  let wallet = searchParams.get('wallet')
   
   if (!wallet) {
     return NextResponse.json({ error: 'Wallet address required' }, { status: 400 })
+  }
+  
+  // Check if it's a .sol domain
+  let resolvedFrom: string | undefined
+  if (wallet.endsWith('.sol')) {
+    try {
+      const resolved = await resolveSolDomain(wallet)
+      if (!resolved) {
+        return NextResponse.json({ error: `Could not resolve domain: ${wallet}` }, { status: 400 })
+      }
+      resolvedFrom = wallet
+      wallet = resolved
+    } catch (e: any) {
+      return NextResponse.json({ error: `Failed to resolve domain: ${e.message}` }, { status: 400 })
+    }
   }
   
   // Basic validation
@@ -24,6 +40,10 @@ export async function GET(request: Request) {
       )
     ]) as Awaited<ReturnType<typeof calculateScore>>
     
+    // Add domain info if resolved
+    if (resolvedFrom) {
+      return NextResponse.json({ ...result, resolvedFrom })
+    }
     return NextResponse.json(result)
   } catch (error: any) {
     console.error(`[score] Error for ${wallet}:`, error.message)

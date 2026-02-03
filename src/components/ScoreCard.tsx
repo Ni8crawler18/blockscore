@@ -7,14 +7,14 @@ interface ScoreData {
   breakdown: {
     age: number
     activity: number
-    defi: number
+    balance: number
     diversity: number
   }
   wallet: string
   stats?: {
-    totalTxAnalyzed: number
-    defiTxFound: number
+    solBalance: number
     tokenCount: number
+    txCount: number
     oldestTxDays: number
   }
 }
@@ -22,7 +22,7 @@ interface ScoreData {
 const metrics = [
   { key: 'age', label: 'Age', description: 'Wallet maturity', icon: '⏱' },
   { key: 'activity', label: 'Activity', description: 'Transaction frequency', icon: '⚡' },
-  { key: 'defi', label: 'DeFi', description: 'Protocol interactions', icon: '🔄' },
+  { key: 'balance', label: 'Balance', description: 'SOL holdings', icon: '💰' },
   { key: 'diversity', label: 'Diversity', description: 'Token holdings', icon: '💎' },
 ] as const
 
@@ -147,12 +147,12 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
         {data.stats && (
           <div className="grid grid-cols-4 gap-2 pt-4 border-t border-white/5">
             <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.totalTxAnalyzed}</div>
-              <div className="text-[10px] text-white/40">Tx Analyzed</div>
+              <div className="text-lg font-semibold text-white">{data.stats.txCount}</div>
+              <div className="text-[10px] text-white/40">Transactions</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.defiTxFound}</div>
-              <div className="text-[10px] text-white/40">DeFi Tx</div>
+              <div className="text-lg font-semibold text-white">{data.stats.solBalance}</div>
+              <div className="text-[10px] text-white/40">SOL</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-white">{data.stats.tokenCount}</div>
@@ -209,7 +209,7 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
 
       {/* Trust indicator */}
       <div className="mt-4 text-center text-xs text-white/30">
-        Analyzed {data.stats?.totalTxAnalyzed || 25} transactions • Data from Solana mainnet
+        Data from Solana mainnet • Real-time analysis
       </div>
     </div>
   )

@@ -12,8 +12,9 @@ export default function DocsPage() {
             <span className="font-semibold text-lg">BlockScore</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/60">
+            <Link href="/leaderboard" className="hover:text-white transition-colors">🏆 Leaderboard</Link>
+            <Link href="/compare" className="hover:text-white transition-colors">⚔️ Compare</Link>
             <Link href="/docs" className="text-white">Docs</Link>
-            <a href="/api/score?wallet=vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg" target="_blank" className="hover:text-white transition-colors">API</a>
             <a href="https://github.com/Ni8crawler18/blockscore" target="_blank" rel="noopener" className="hover:text-white transition-colors">GitHub</a>
           </nav>
         </div>
@@ -51,10 +52,10 @@ export default function DocsPage() {
 
               <div className="glass rounded-xl p-5">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-xl">🔄</span>
-                  <h3 className="font-semibold">DeFi (0-25 pts)</h3>
+                  <span className="text-xl">💰</span>
+                  <h3 className="font-semibold">Balance (0-25 pts)</h3>
                 </div>
-                <p className="text-sm text-white/50">Interactions with DeFi protocols (Jupiter, Raydium, Kamino, Marinade). 2 points per interaction.</p>
+                <p className="text-sm text-white/50">SOL holdings showing skin in the game. Tiers: 0.1+ SOL (5pts), 1+ (10pts), 10+ (15pts), 50+ (20pts), 100+ (25pts).</p>
               </div>
 
               <div className="glass rounded-xl p-5">
@@ -97,15 +98,21 @@ export default function DocsPage() {
                 <p className="text-sm text-white/40 mb-2">Example Response</p>
                 <pre className="bg-white/5 rounded-lg px-4 py-3 font-mono text-sm overflow-x-auto">
 {`{
-  "score": 71,
+  "score": 75,
   "grade": "B",
   "breakdown": {
     "age": 25,
     "activity": 25,
-    "defi": 0,
-    "diversity": 21
+    "balance": 10,
+    "diversity": 15
   },
-  "wallet": "vines1vzr...NKPTg"
+  "wallet": "vines1vzr...NKPTg",
+  "stats": {
+    "solBalance": 2.5,
+    "tokenCount": 5,
+    "txCount": 100,
+    "oldestTxDays": 365
+  }
 }`}
                 </pre>
               </div>
@@ -118,6 +125,63 @@ export default function DocsPage() {
                   className="text-primary-400 hover:text-primary-300 text-sm font-mono"
                 >
                   /api/score?wallet=vines1vzr...NKPTg →
+                </a>
+              </div>
+            </div>
+          </section>
+
+          {/* Batch API */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">Batch API</h2>
+            <div className="glass rounded-xl p-5 space-y-4">
+              <div>
+                <p className="text-sm text-white/40 mb-2">Endpoint</p>
+                <code className="block bg-white/5 rounded-lg px-4 py-3 font-mono text-sm">
+                  POST /api/batch
+                </code>
+              </div>
+              
+              <div>
+                <p className="text-sm text-white/40 mb-2">Request Body</p>
+                <pre className="bg-white/5 rounded-lg px-4 py-3 font-mono text-sm overflow-x-auto">
+{`{
+  "wallets": [
+    "address1",
+    "address2",
+    "..."
+  ]
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <p className="text-sm text-white/40 mb-2">Limits</p>
+                <ul className="text-sm text-white/60 list-disc list-inside">
+                  <li>Max 10 wallets per request</li>
+                  <li>30 second timeout</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* OG Image */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">OG Image API</h2>
+            <div className="glass rounded-xl p-5 space-y-4">
+              <div>
+                <p className="text-sm text-white/40 mb-2">Generate shareable images</p>
+                <code className="block bg-white/5 rounded-lg px-4 py-3 font-mono text-sm break-all">
+                  GET /api/og?score=75&grade=B&wallet=vines1...NKPTg
+                </code>
+              </div>
+              <div>
+                <p className="text-sm text-white/40 mb-2">Try it</p>
+                <a 
+                  href="/api/og?score=75&grade=B&wallet=vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg"
+                  target="_blank"
+                  className="text-primary-400 hover:text-primary-300 text-sm font-mono"
+                >
+                  View sample OG image →
                 </a>
               </div>
             </div>
