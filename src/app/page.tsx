@@ -190,7 +190,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <a href="/docs" className="hover:text-white transition-colors">Docs</a>
             <a href="https://github.com/Ni8crawler18/blockscore" target="_blank" rel="noopener" className="hover:text-white transition-colors">GitHub</a>
-            <a href="https://twitter.com/ni8crawler" target="_blank" rel="noopener" className="hover:text-white transition-colors">Twitter</a>
+            <a href="https://twitter.com/eigen_12" target="_blank" rel="noopener" className="hover:text-white transition-colors">Twitter</a>
           </div>
         </div>
       </footer>
