@@ -15,9 +15,13 @@ interface ScoreData {
   wallet: string
   stats?: {
     solBalance: number
+    stakedSol: number
+    totalSolValue: number
     tokenCount: number
+    nftCount: number
     txCount: number
     oldestTxDays: number
+    lastActiveDays: number
   }
 }
 

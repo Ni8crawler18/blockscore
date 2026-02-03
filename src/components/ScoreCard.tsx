@@ -13,9 +13,13 @@ interface ScoreData {
   wallet: string
   stats?: {
     solBalance: number
+    stakedSol: number
+    totalSolValue: number
     tokenCount: number
+    nftCount: number
     txCount: number
     oldestTxDays: number
+    lastActiveDays: number
   }
 }
 
@@ -145,22 +149,38 @@ export default function ScoreCard({ data, onReset }: { data: ScoreData; onReset:
 
         {/* Stats */}
         {data.stats && (
-          <div className="grid grid-cols-4 gap-2 pt-4 border-t border-white/5">
-            <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.txCount}</div>
-              <div className="text-[10px] text-white/40">Transactions</div>
+          <div className="space-y-3 pt-4 border-t border-white/5">
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.totalSolValue}</div>
+                <div className="text-[10px] text-white/40">Total SOL</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.stakedSol > 0 ? data.stats.stakedSol : '-'}</div>
+                <div className="text-[10px] text-white/40">Staked</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.tokenCount}</div>
+                <div className="text-[10px] text-white/40">Tokens</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.nftCount}</div>
+                <div className="text-[10px] text-white/40">NFTs</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.solBalance}</div>
-              <div className="text-[10px] text-white/40">SOL</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.tokenCount}</div>
-              <div className="text-[10px] text-white/40">Tokens</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.stats.oldestTxDays}d</div>
-              <div className="text-[10px] text-white/40">Age</div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.txCount}</div>
+                <div className="text-[10px] text-white/40">Transactions</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.oldestTxDays}d</div>
+                <div className="text-[10px] text-white/40">Age</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-white">{data.stats.lastActiveDays === 0 ? 'Today' : `${data.stats.lastActiveDays}d ago`}</div>
+                <div className="text-[10px] text-white/40">Last Active</div>
+              </div>
             </div>
           </div>
         )}
